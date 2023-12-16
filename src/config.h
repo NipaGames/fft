@@ -9,5 +9,10 @@ enum class inputType {
 
 struct config {
     inputType input;
+    int deviceId;
     std::string srcFile;
+    int freq;
+    int bins;
 };
+
+bool readConfigFromFile(const std::string&, config&);

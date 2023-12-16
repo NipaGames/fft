@@ -56,7 +56,7 @@ void audio::loadAudio(const std::string& src) {
 	SDL_PauseAudio(SDL_FALSE);
 }
 
-int audio::setupMicrophone() {
+int audio::setupMicrophone(int device) {
     int nDevices = SDL_GetNumAudioDevices(SDL_TRUE);
     if (nDevices < 1) {
         std::cout << "no audio devices found!" << std::endl;
@@ -66,7 +66,7 @@ int audio::setupMicrophone() {
     for (int i = 0; i < nDevices; i++) {
         std::cout << "  [" << i << "] " << SDL_GetAudioDeviceName(i, SDL_TRUE) << std::endl;
     }
-    int selected = MICROPHONE_DEVICE_NUM;
+    int selected = device;
     std::cout << "selecting [" << selected << "] - " << SDL_GetAudioDeviceName(selected, SDL_TRUE) << std::endl;
 
     SDL_AudioSpec desiredRecordingSpec;
@@ -88,8 +88,9 @@ int audio::setupMicrophone() {
     return deviceId;
 }
 
+
+std::array<complex<float>, audio::MAX_SAMPLE_COUNT> samples;
 void audio::updateBins() {
-    std::array<complex<float>, audio::SAMPLE_COUNT> samples;
     if (audio::BUFFER_SOURCE == audio::bufferSource::COPY_TO_SAMPLE_BUFFER) {
         for (int i = 0; i < audio::SAMPLE_COUNT; i++) {
             if (i >= audio::SAMPLE_BUFFER.size()) {
@@ -112,7 +113,8 @@ void audio::updateBins() {
             samples[i] = audio::readBuffer(audio::WAV_BUFFER, pos);
         }
     }
-    audio::BINS = fft(std::move(samples));
+    fft(samples, audio::SAMPLE_COUNT);
+    audio::BINS = std::vector<complex<float>>(samples.begin(), samples.begin() + audio::SAMPLE_COUNT);
 }
 
 void audio::destroy() {
