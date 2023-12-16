@@ -1,10 +1,11 @@
 #include "audio.h"
+#include "fft.h"
 
 #include <iostream>
 
 using namespace audio;
 
-// returns volume from 0 to 1 at a given point, converts from 32 bit integer array to float
+// returns volume from 0 to 1 at a given point, reads from 32 bit integer array and converts to float
 float audio::readBuffer(const uint8_t* buffer, unsigned int offset) {
     int16_t i = ((int16_t*) buffer)[offset];
     return (((float) i) / UINT16_MAX + .5f);
@@ -18,36 +19,41 @@ float audio::readBuffer(const SDL_AudioCVT& f, unsigned int offset) {
     return readBuffer(f.buf, offset);
 }
 
-void audio::loadAudio(const char* src) {
+int totalSamples = 0;
+
+void audio::playbackCallback(void* data, uint8_t* stream, int len) {
+    if (CURRENT_OFFSET + len >= AUDIO_LENGTH) {
+        SDL_PauseAudio(SDL_TRUE);
+        return;
+    }
+	SDL_memcpy(stream, WAV_BUFFER + CURRENT_OFFSET, len);
+	SDL_MixAudio(stream, WAV_BUFFER + CURRENT_OFFSET, len, SDL_MIX_MAXVOLUME);
+    CURRENT_OFFSET += len;
+}
+
+void audio::recordingCallback(void* data, uint8_t* stream, int len) {
+    if (totalSamples >= SAMPLE_COUNT)
+        SAMPLE_BUFFER.erase(SAMPLE_BUFFER.begin(), SAMPLE_BUFFER.begin() + POLL_INTERVAL);
+    for (int i = 0; i < POLL_INTERVAL; i++) {
+        SAMPLE_BUFFER.push_back(readBuffer(stream, i));
+    }
+    totalSamples += POLL_INTERVAL;
+}
+
+void audio::loadAudio(const std::string& src) {
     SDL_AudioSpec spec;
-    uint8_t* buffer;
-    unsigned int len;
-    if (SDL_LoadWAV(src, &spec, &buffer, &len) == NULL) {
+    if (SDL_LoadWAV(src.c_str(), &spec, &WAV_BUFFER, &AUDIO_LENGTH) == nullptr) {
         std::cout << "audio file loading failed" << std::endl;
         return;
     }
-    SDL_AudioCVT cvt;
-    SDL_BuildAudioCVT(&cvt, spec.format, spec.channels, spec.freq, AUDIO_S16, 1, SAMPLE_RATE);
-    cvt.buf = (uint8_t*) SDL_malloc(len * cvt.len_mult);
-    SDL_memcpy(cvt.buf, buffer, len);
-    cvt.len = len;
-    SDL_ConvertAudio(&cvt);
-    SDL_FreeWAV(buffer);
+    SAMPLE_RATE = spec.freq;
 
-    for (int t = 0; t < len / 4; t++) {
-        audio::SAMPLES.push_back(audio::readBuffer(cvt, t));
-    }
-}
-
-int totalSamples = 0;
-SDL_AudioSpec recordingSpec;
-void audio::recordingCallback(void* data, uint8_t* stream, int len) {
-    if (totalSamples >= SAMPLE_COUNT)
-        SAMPLES.erase(SAMPLES.begin(), SAMPLES.begin() + MICROPHONE_POLL_INTERVAL);
-    for (int i = 0; i < MICROPHONE_POLL_INTERVAL; i++) {
-        SAMPLES.push_back(readBuffer(stream, i));
-    }
-    totalSamples += MICROPHONE_POLL_INTERVAL;
+    spec.callback = playbackCallback;
+    spec.samples = POLL_INTERVAL;
+    if (SDL_OpenAudio(&spec, NULL) < 0){
+	    std::cout << SDL_GetError() << std::endl;
+	}
+	SDL_PauseAudio(SDL_FALSE);
 }
 
 int audio::setupMicrophone() {
@@ -68,10 +74,10 @@ int audio::setupMicrophone() {
     desiredRecordingSpec.freq = SAMPLE_RATE;
     desiredRecordingSpec.format = AUDIO_S16;
     desiredRecordingSpec.channels = 2;
-    desiredRecordingSpec.samples = MICROPHONE_POLL_INTERVAL;
+    desiredRecordingSpec.samples = POLL_INTERVAL;
     desiredRecordingSpec.callback = recordingCallback;
 
-    //Open recording device
+    // open recording device
     SDL_AudioSpec recordingSpec;
     int deviceId = SDL_OpenAudioDevice(SDL_GetAudioDeviceName(selected, SDL_TRUE), SDL_TRUE, &desiredRecordingSpec, &recordingSpec, 0);
 
@@ -80,4 +86,37 @@ int audio::setupMicrophone() {
         return -1;
     }
     return deviceId;
+}
+
+void audio::updateBins() {
+    std::array<complex<float>, audio::SAMPLE_COUNT> samples;
+    if (audio::BUFFER_SOURCE == audio::bufferSource::COPY_TO_SAMPLE_BUFFER) {
+        for (int i = 0; i < audio::SAMPLE_COUNT; i++) {
+            if (i >= audio::SAMPLE_BUFFER.size()) {
+                samples[i] = .5f;
+                continue;
+            }
+            samples[i] = audio::SAMPLE_BUFFER[i];
+        }
+    }
+    else if (audio::BUFFER_SOURCE == audio::bufferSource::USE_WAV_BUFFER) {
+        if (audio::CURRENT_OFFSET + (audio::SAMPLE_COUNT << 2) >= audio::AUDIO_LENGTH)
+            return;
+        int begin = audio::CURRENT_OFFSET >> 2;
+        for (int i = 0; i < audio::SAMPLE_COUNT; i++) {
+            int pos = (begin + i - audio::SAMPLE_COUNT / 2) << 1;
+            if (pos <= 0) {
+                samples[i] = .5f;
+                continue;
+            }
+            samples[i] = audio::readBuffer(audio::WAV_BUFFER, pos);
+        }
+    }
+    audio::BINS = fft(std::move(samples));
+}
+
+void audio::destroy() {
+    SDL_CloseAudio();
+    SDL_FreeWAV(WAV_BUFFER);
+    WAV_BUFFER = nullptr;
 }

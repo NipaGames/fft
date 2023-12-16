@@ -5,6 +5,7 @@
 
 #include "wnd.h"
 #include "audio.h"
+#include "fft.h"
 
 using namespace wnd;
 
@@ -58,6 +59,10 @@ float wnd::wndPosToGraphPos(int x) {
 
 int wnd::freqToWndPos(float x) {
     return (WND_WIDTH / EXPONENT) * log10((2.0f * x) / (float) audio::SAMPLE_RATE) + WND_WIDTH;
+}
+
+int wnd::binToWndPos(int bin) {
+    return (WND_WIDTH / EXPONENT) * log10(bin / (float) binCount) + WND_WIDTH;
 }
 
 void drawLine(float freq) {
@@ -134,13 +139,13 @@ bool wnd::initSDL() {
 bool wnd::createGraphWindow(const char* title) {
     window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WND_WIDTH, WND_HEIGHT, 0);
     if (!window) {
-        printf("Error: Failed to open window\nSDL Error: '%s'\n", SDL_GetError());
+        std::cout << SDL_GetError() << std::endl;
         return false;
     }
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer){
-        printf("Error: Failed to create renderer\nSDL Error: '%s'\n", SDL_GetError());
+        std::cout << SDL_GetError() << std::endl;
         return false;
     }
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF);
@@ -150,16 +155,16 @@ bool wnd::createGraphWindow(const char* title) {
     font = TTF_OpenFont(FONT_PATH, 16);
     
     graphTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, WND_WIDTH, WND_HEIGHT);
-    updateBins();
+    audio::updateBins();
     renderGraph();
 
     bool running = true;
-    int mouseX;
+    int mouseX = -1;
     int prevMouseX = 0;
     while (running) {
         SDL_Event event;
-        updateBins();
 
+        audio::updateBins();
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
         SDL_RenderClear(renderer);
         renderGraph();
@@ -180,43 +185,47 @@ bool wnd::createGraphWindow(const char* title) {
         }
 
         if (maxBin != -1 && maxAmplitude > 1.0f) {
-            int pos = (WND_WIDTH / EXPONENT) * log10(maxBin / (float) binCount) + WND_WIDTH;
+            int cursorPos = binToWndPos(maxBin);
             SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0x60);
-            SDL_RenderDrawLine(renderer, pos, 0, pos, WND_HEIGHT);
+            SDL_RenderDrawLine(renderer, cursorPos, 0, cursorPos, WND_HEIGHT);
 
-            renderText(std::to_string((int) wndPosToFreq(pos)) + " Hz", maxFrequencyTextTexture, maxFrequencyTextRect);
-            maxFrequencyTextRect.x = pos;
+            renderText(std::to_string((int) wndPosToFreq(cursorPos)) + " Hz", maxFrequencyTextTexture, maxFrequencyTextRect);
+            maxFrequencyTextRect.x = cursorPos;
             centerAndClampRect(maxFrequencyTextRect);
             SDL_RenderCopy(renderer, maxFrequencyTextTexture, NULL, &maxFrequencyTextRect);
 
             renderText(std::to_string(maxAmplitude), maxAmplitudeTextTexture, maxAmplitudeTextRect);
-            maxAmplitudeTextRect.x = pos;
+            maxAmplitudeTextRect.x = cursorPos;
             centerAndClampRect(maxAmplitudeTextRect);
             SDL_RenderCopy(renderer, maxAmplitudeTextTexture, NULL, &maxAmplitudeTextRect);
         }
 
-        SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0x80);
-        SDL_RenderDrawLine(renderer, mouseX, 0, mouseX, WND_HEIGHT);
+        if (mouseX != -1) {
+            SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0x80);
+            SDL_RenderDrawLine(renderer, mouseX, 0, mouseX, WND_HEIGHT);
 
-        int freq = (int) wndPosToFreq(mouseX);
-        int bin = round(wndPosToGraphPos(mouseX));
-        
-        if (prevMouseX != mouseX) {
-            renderText(std::to_string(freq) + " Hz", cursorFrequencyTextTexture, cursorFrequencyTextRect);
+            int freq = (int) wndPosToFreq(mouseX);
+            int bin = round(wndPosToGraphPos(mouseX));
+            
+            if (prevMouseX != mouseX) {
+                renderText(std::to_string(freq) + " Hz", cursorFrequencyTextTexture, cursorFrequencyTextRect);
+            }
+            cursorFrequencyTextRect.x = mouseX;
+            centerAndClampRect(cursorFrequencyTextRect);
+            SDL_RenderCopy(renderer, cursorFrequencyTextTexture, NULL, &cursorFrequencyTextRect);
+
+            renderText(std::to_string(std::abs(audio::BINS.at(bin))), cursorAmplitudeTextTexture, cursorAmplitudeTextRect);
+            cursorAmplitudeTextRect.x = mouseX;
+            centerAndClampRect(cursorAmplitudeTextRect);
+            SDL_RenderCopy(renderer, cursorAmplitudeTextTexture, NULL, &cursorAmplitudeTextRect);
         }
-        cursorFrequencyTextRect.x = mouseX;
-        centerAndClampRect(cursorFrequencyTextRect);
-        SDL_RenderCopy(renderer, cursorFrequencyTextTexture, NULL, &cursorFrequencyTextRect);
-
-        renderText(std::to_string(std::abs(audio::BINS.at(bin))), cursorAmplitudeTextTexture, cursorAmplitudeTextRect);
-        cursorAmplitudeTextRect.x = mouseX;
-        centerAndClampRect(cursorAmplitudeTextRect);
-        SDL_RenderCopy(renderer, cursorAmplitudeTextTexture, NULL, &cursorAmplitudeTextRect);
 
         SDL_RenderPresent(renderer);
 
         prevMouseX = mouseX;
     }
+    audio::destroy();
+    
     SDL_DestroyTexture(graphTexture);
     SDL_DestroyTexture(cursorFrequencyTextTexture);
     SDL_DestroyTexture(maxFrequencyTextTexture);

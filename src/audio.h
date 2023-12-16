@@ -1,4 +1,5 @@
 #pragma once
+
 #include <array>
 #include <vector>
 #include <complex>
@@ -6,23 +7,40 @@
 #include <cmath>
 #include <optional>
 
-
 namespace audio {
-    const int SAMPLE_COUNT = 8192;
-    const int SAMPLE_RATE = 44100;
+    // NOT in bytes
+    // going over 32768 will cause stack overflows, so don't
+    // (or alternatively heap-allocate everything)
+    const uint32_t SAMPLE_COUNT = 8192;
+    inline uint32_t SAMPLE_RATE = 22050;
+    const int POLL_INTERVAL = 64;
+
+    // in bytes
+    inline uint32_t AUDIO_LENGTH = 0;
+    // in bytes
+    inline uint32_t CURRENT_OFFSET = 0;
 
     inline std::array<std::complex<float>, audio::SAMPLE_COUNT> BINS;
 
-    // depending on the input type this will be written with samples from a file or microphone input
-    inline std::vector<float> SAMPLES;
+    inline std::vector<float> SAMPLE_BUFFER;
+    inline uint8_t* WAV_BUFFER = nullptr;
+
+    enum class bufferSource {
+        COPY_TO_SAMPLE_BUFFER,
+        USE_WAV_BUFFER
+    };
+    inline bufferSource BUFFER_SOURCE;
 
     float readBuffer(const uint8_t*, unsigned int);
     float readBuffer(const SDL_AudioCVT&, unsigned int);
 
-    void loadAudio(const char*);
+    void updateBins();
+
+    void loadAudio(const std::string&);
+    void destroy();
 
     const int MICROPHONE_DEVICE_NUM = 0;
-    const int MICROPHONE_POLL_INTERVAL = 64;
     int setupMicrophone();
+    void playbackCallback(void*, uint8_t*, int);
     void recordingCallback(void*, uint8_t*, int);
 };

@@ -16,10 +16,10 @@ namespace wnd {
     bool initSDL();
 
     bool createGraphWindow(const char*);
-    void updateBins();
     
     float wndPosToFreq(int);
     float wndPosToGraphPos(int);
+    int binToWndPos(int);
     int freqToWndPos(float);
     void renderGraph();
 };
