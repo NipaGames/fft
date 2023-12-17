@@ -37,9 +37,10 @@ namespace audio {
 
     void updateBins();
 
-    void loadAudio(const std::string&);
+    bool loadAudio(const std::string&);
     void destroy();
 
+    inline int AUDIO_DEVICE_ID = 0;
     int setupMicrophone(int);
     void playbackCallback(void*, uint8_t*, int);
     void recordingCallback(void*, uint8_t*, int);

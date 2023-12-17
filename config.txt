@@ -1,4 +1,4 @@
-src: mic
+src: <random>.wav
 device: 0
 freq: 22050
 bins: 8192

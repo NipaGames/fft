@@ -106,11 +106,11 @@ void wnd::renderGraph() {
             yPos = WND_HEIGHT - margin;
         
         switch (DRAW_MODE) {
-            case POINTS:
+            case GraphDrawMode::POINTS:
                 SDL_RenderDrawPoint(renderer, xPos, yPos); 
                 break;
             
-            case LINEAR_INTERPOLATE:
+            case GraphDrawMode::LINEAR_INTERPOLATE:
                 if (!first) {
                     SDL_RenderDrawLine(renderer, prevX, prevY, xPos, yPos);
                 }
@@ -214,7 +214,7 @@ bool wnd::createGraphWindow(const char* title) {
             centerAndClampRect(cursorFrequencyTextRect);
             SDL_RenderCopy(renderer, cursorFrequencyTextTexture, NULL, &cursorFrequencyTextRect);
 
-            renderText(std::to_string(std::abs(audio::BINS.at(bin))), cursorAmplitudeTextTexture, cursorAmplitudeTextRect);
+            renderText(std::to_string(bin < audio::BINS.size() ? std::abs(audio::BINS.at(bin)) : 0.0f), cursorAmplitudeTextTexture, cursorAmplitudeTextRect);
             cursorAmplitudeTextRect.x = mouseX;
             centerAndClampRect(cursorAmplitudeTextRect);
             SDL_RenderCopy(renderer, cursorAmplitudeTextTexture, NULL, &cursorAmplitudeTextRect);
@@ -234,3 +234,16 @@ bool wnd::createGraphWindow(const char* title) {
     SDL_DestroyWindow(window);
     return true;
 }
+
+#ifdef _WIN32
+#include <Windows.h>
+void wnd::showConsole() {
+    ShowWindow(GetConsoleWindow(), SW_SHOW);
+}
+void wnd::hideConsole() {
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
+}
+#else
+void wnd::showConsole() { }
+void wnd::hideConsole() { }
+#endif

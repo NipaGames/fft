@@ -40,11 +40,11 @@ void audio::recordingCallback(void* data, uint8_t* stream, int len) {
     totalSamples += POLL_INTERVAL;
 }
 
-void audio::loadAudio(const std::string& src) {
+bool audio::loadAudio(const std::string& src) {
     SDL_AudioSpec spec;
     if (SDL_LoadWAV(src.c_str(), &spec, &WAV_BUFFER, &AUDIO_LENGTH) == nullptr) {
-        std::cout << "audio file loading failed" << std::endl;
-        return;
+        std::cout << "audio file loading failed ('" << src <<"' doesn't exist or is of non-wav format)" << std::endl;
+        return false;
     }
     SAMPLE_RATE = spec.freq;
 
@@ -52,10 +52,13 @@ void audio::loadAudio(const std::string& src) {
     spec.samples = POLL_INTERVAL;
     if (SDL_OpenAudio(&spec, NULL) < 0){
 	    std::cout << SDL_GetError() << std::endl;
+        return false;
 	}
 	SDL_PauseAudio(SDL_FALSE);
+    return true;
 }
 
+int audioDeviceId = 0;
 int audio::setupMicrophone(int device) {
     int nDevices = SDL_GetNumAudioDevices(SDL_TRUE);
     if (nDevices < 1) {
@@ -79,13 +82,14 @@ int audio::setupMicrophone(int device) {
 
     // open recording device
     SDL_AudioSpec recordingSpec;
-    int deviceId = SDL_OpenAudioDevice(SDL_GetAudioDeviceName(selected, SDL_TRUE), SDL_TRUE, &desiredRecordingSpec, &recordingSpec, 0);
+    AUDIO_DEVICE_ID = SDL_OpenAudioDevice(SDL_GetAudioDeviceName(selected, SDL_TRUE), SDL_TRUE, &desiredRecordingSpec, &recordingSpec, 0);
 
-    if (deviceId == 0) {
+    if (AUDIO_DEVICE_ID == 0) {
         std::cout << "cannot setup device!" << std::endl;
         return -1;
     }
-    return deviceId;
+    SDL_PauseAudioDevice(AUDIO_DEVICE_ID, SDL_FALSE);
+    return AUDIO_DEVICE_ID;
 }
 
 
@@ -101,6 +105,8 @@ void audio::updateBins() {
         }
     }
     else if (audio::BUFFER_SOURCE == audio::bufferSource::USE_WAV_BUFFER) {
+        if (audio::WAV_BUFFER == nullptr)
+            return;
         if (audio::CURRENT_OFFSET + (audio::SAMPLE_COUNT << 2) >= audio::AUDIO_LENGTH)
             return;
         int begin = audio::CURRENT_OFFSET >> 2;
@@ -118,6 +124,7 @@ void audio::updateBins() {
 }
 
 void audio::destroy() {
+    SDL_CloseAudioDevice(AUDIO_DEVICE_ID);
     SDL_CloseAudio();
     SDL_FreeWAV(WAV_BUFFER);
     WAV_BUFFER = nullptr;

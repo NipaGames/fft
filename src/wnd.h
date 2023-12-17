@@ -5,11 +5,11 @@
 #define FONT_PATH "ARIAL.TTF"
 
 namespace wnd {
-    enum GraphDrawMode {
+    enum class GraphDrawMode {
         POINTS,
         LINEAR_INTERPOLATE
     };
-    const GraphDrawMode DRAW_MODE = LINEAR_INTERPOLATE;
+    const GraphDrawMode DRAW_MODE = GraphDrawMode::LINEAR_INTERPOLATE;
     const double GRAPH_RANGE_Y = 500;
     const double EXPONENT = 3.0;
 
@@ -22,4 +22,7 @@ namespace wnd {
     int binToWndPos(int);
     int freqToWndPos(float);
     void renderGraph();
+
+    void showConsole();
+    void hideConsole();
 };
