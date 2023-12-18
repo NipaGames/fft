@@ -12,6 +12,7 @@ namespace wnd {
     const GraphDrawMode DRAW_MODE = GraphDrawMode::LINEAR_INTERPOLATE;
     const double GRAPH_RANGE_Y = 500;
     const double EXPONENT = 3.0;
+    const int LIMIT_FPS = 60;
 
     bool initSDL();
 

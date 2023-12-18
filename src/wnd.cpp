@@ -161,10 +161,13 @@ bool wnd::createGraphWindow(const char* title) {
     bool running = true;
     int mouseX = -1;
     int prevMouseX = 0;
+    int tickInterval = (int) (1000.0f / (float) LIMIT_FPS);
+    int nextTick = SDL_GetTicks() + tickInterval;
     while (running) {
+        audio::updateBins();
+        
         SDL_Event event;
 
-        audio::updateBins();
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
         SDL_RenderClear(renderer);
         renderGraph();
@@ -223,6 +226,9 @@ bool wnd::createGraphWindow(const char* title) {
         SDL_RenderPresent(renderer);
 
         prevMouseX = mouseX;
+
+        SDL_Delay(std::max(nextTick - (int) SDL_GetTicks(), 0));
+        nextTick = SDL_GetTicks() + tickInterval;
     }
     audio::destroy();
     
