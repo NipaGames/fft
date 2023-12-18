@@ -33,6 +33,11 @@ bool updateConfigIntValue(const symbolMap& symbols, const std::string& symbolNam
 std::optional<symbol> parseLine(std::string ln) {
     std::string name;
     std::string val;
+    while (std::isspace(ln.at(0))) {
+        ln.erase(0, 1);
+        if (ln.empty())
+            return std::nullopt;
+    }
     size_t delim = ln.find_first_of(":");
     if (delim == std::string::npos || delim >= ln.length() - 1) {
         return std::nullopt;
